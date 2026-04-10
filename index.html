@@ -17,7 +17,7 @@
       --bronze:    #a87c50;
       --green:     #22c55e;
       --blue:      #3b82f6;
-      --text:      rgba(255,255,255,0.88);
+      --text:      rgb(255, 255, 255);
       --muted:     rgba(255,255,255,0.35);
       --faint:     rgba(255,255,255,0.06);
     }
@@ -25,7 +25,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: 'Syne', sans-serif;
+      font-family: 'Arial', sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
@@ -466,9 +466,9 @@ const API = {
    Exemplo: https://docs.google.com/spreadsheets/d/SEU_ID/edit#gid=0
 */
 const GID = {
-  mensal:  "1596529438",   // ← substitua pelo gid real da aba Ranking Mensal
-  semanal: "1596529438",   // ← substitua pelo gid real da aba Campanha Semanal
-  equipes: "1596529438",   // ← substitua pelo gid real da aba Campanha Mensal
+  mensal:  "0",   // ← substitua pelo gid real da aba Ranking Mensal
+  semanal: "0",   // ← substitua pelo gid real da aba Campanha Semanal
+  equipes: "0",   // ← substitua pelo gid real da aba Campanha Mensal
 };
 
 /* Índices de coluna no CSV (0-based) de cada aba
@@ -543,98 +543,105 @@ async function loadSheets() {
 
 /* ── parsers ── */
 
-/* Caso tudo esteja na mesma aba (como no print) */
+/*
+  O CSV do Google Sheets usa a linha 1 como cabeçalho.
+  Quando há múltiplas tabelas side-by-side na mesma aba,
+  o CSV exporta TODAS as colunas em cada linha — os cabeçalhos
+  duplicados ganham sufixo automático (_1, _2...).
+
+  Estratégia: inspecionar as chaves reais do CSV e localizar
+  cada coluna pelo nome (case-insensitive, busca parcial).
+*/
+
+/* Encontra a chave real num objeto que contém o texto buscado */
+function findKey(keys, search) {
+  const s = search.toLowerCase();
+  return keys.find(k => k.toLowerCase().includes(s)) ?? null;
+}
+
+/* Caso tudo esteja na mesma aba "Ranking" (como no print) */
 function parseUnicaAba(rows) {
-  /* Remove cabeçalhos e linhas vazias */
-  const clean = rows.filter(r => Object.values(r).some(v => v && v !== "#N/D"));
+  if (!rows || rows.length === 0) return { mensal: [], semanal: [], equipes: [] };
 
-  /* Ranking Mensal: colunas A-D → índices 0-3 */
+  const keys = Object.keys(rows[0]);
+  console.log("[DEBUG] Colunas CSV recebidas:", keys);
+
+  // Remove linhas completamente vazias ou só com #N/D
+  const clean = rows.filter(r =>
+    Object.values(r).some(v => v && v.trim() !== "" && v !== "#N/D")
+  );
+
+  /* ── RANKING MENSAL (A-D): Nome | Vendas | Valores válidos | Posição ── */
+  const kNome    = findKey(keys, "nome");
+  const kVendas  = findKey(keys, "vendas");
+  const kValidos = findKey(keys, "valores v");   // "Valores válidos"
+  const kPos     = findKey(keys, "posi");
+
+  console.log("[DEBUG] Mensal:", { kNome, kVendas, kValidos, kPos });
+
   const mensal = clean
-    .filter(r => r[colKey(0)] && !isNaN(parseMoeda(r[colKey(2)])))
+    .filter(r => r[kNome]?.trim() && parseMoeda(r[kValidos]) > 0)
     .map(r => ({
-      nome:     r[colKey(0)],
-      vendas:   Number(r[colKey(1)]) || 0,
-      validos:  parseMoeda(r[colKey(2)]),
-      posicao:  Number(r[colKey(3)]) || 999,
+      nome:    r[kNome].trim(),
+      vendas:  Number(r[kVendas]) || 0,
+      validos: parseMoeda(r[kValidos]),
+      posicao: Number(r[kPos]) || 999,
     }))
-    .filter(r => r.posicao <= 20 && r.nome)
+    .filter(r => r.posicao < 900)
     .sort((a, b) => a.posicao - b.posicao)
     .slice(0, 3);
 
-  /* Campanha Mensal por Equipe: colunas G-J → índices 6-9 */
+  /* ── RANKING CAMPANHA MENSAL (G-J): Equipe | Vendas | Vendas válidas | Posição ──
+     Colunas duplicadas no CSV ganham sufixo _1, _2 etc pelo parser.
+     "Equipe" aparece na coluna G e L → pega a 1ª ocorrência.
+     "Vendas válidas" é distinto de "Valores válidos" → busca "vendas v".       */
+  const equipeCols  = keys.filter(k => k.toLowerCase().includes("equipe"));
+  const vendasCols  = keys.filter(k => k.toLowerCase().includes("vendas"));
+  const posCols     = keys.filter(k => k.toLowerCase().includes("posi"));
+
+  const kEquipeMensal  = equipeCols[0] ?? null;
+  const kVendasMensal  = vendasCols[0] ?? null;   // 1ª coluna "Vendas" das equipes
+  const kVendasValidas = keys.find(k => k.toLowerCase().includes("vendas v") || k.toLowerCase().includes("vendas_v")) ?? vendasCols[1] ?? null;
+  const kPosMensal     = posCols[1] ?? posCols[0];
+
+  console.log("[DEBUG] Equipes:", { kEquipeMensal, kVendasMensal, kVendasValidas, kPosMensal });
+
   const equipes = clean
-    .filter(r => r[colKey(6)] && parseMoeda(r[colKey(7)]) > 0)
+    .filter(r => r[kEquipeMensal]?.trim() && parseMoeda(r[kVendasMensal]) > 0)
     .map(r => ({
-      equipe:    r[colKey(6)],
-      vendas:    parseMoeda(r[colKey(7)]),
-      validadas: parseMoeda(r[colKey(8)]),
-      posicao:   Number(r[colKey(9)]) || 999,
+      equipe:    r[kEquipeMensal].trim(),
+      vendas:    parseMoeda(r[kVendasMensal]),
+      validadas: parseMoeda(r[kVendasValidas]),
+      posicao:   Number(r[kPosMensal]) || 999,
     }))
+    .filter(r => r.posicao < 900)
     .sort((a, b) => a.posicao - b.posicao)
     .slice(0, 3);
 
-  /* Campanha Semanal: colunas L-P → índices 11-15 */
+  /* ── RANKING CAMPANHA SEMANAL (L-P): Equipe | Vendas | Entrada | Sucesso | Posição ── */
+  const kEquipeSemanal = equipeCols[1] ?? equipeCols[0];
+  const kVendasSemanal = vendasCols[2] ?? vendasCols[1] ?? vendasCols[0];
+  const kEntrada       = findKey(keys, "entrada");
+  const kSucesso       = findKey(keys, "sucesso");
+  const kPosSemanal    = posCols[2] ?? posCols[1] ?? posCols[0];
+
+  console.log("[DEBUG] Semanal:", { kEquipeSemanal, kVendasSemanal, kEntrada, kSucesso, kPosSemanal });
+
   const semanal = clean
-    .filter(r => r[colKey(11)] && parseMoeda(r[colKey(12)]) > 0)
+    .filter(r => r[kEquipeSemanal]?.trim() && parseMoeda(r[kVendasSemanal]) > 0)
     .map(r => ({
-      equipe:  r[colKey(11)],
-      vendas:  parseMoeda(r[colKey(12)]),
-      entrada: parseMoeda(r[colKey(13)]),
-      sucesso: r[colKey(14)],
-      posicao: Number(r[colKey(15)]) || 999,
+      equipe:  r[kEquipeSemanal].trim(),
+      vendas:  parseMoeda(r[kVendasSemanal]),
+      entrada: parseMoeda(r[kEntrada]),
+      sucesso: (r[kSucesso] ?? "").trim(),
+      posicao: Number(r[kPosSemanal]) || 999,
     }))
+    .filter(r => r.posicao < 900)
     .sort((a, b) => a.posicao - b.posicao)
     .slice(0, 3);
 
   return { mensal, semanal, equipes };
 }
-
-/* Parsers para abas separadas */
-function parseMensal(rows) {
-  const c = COLS.mensal;
-  return rows
-    .filter(r => r[colKey(c.nome)] && parseMoeda(r[colKey(c.validos)]) > 0)
-    .map(r => ({
-      nome:    r[colKey(c.nome)],
-      vendas:  Number(r[colKey(c.vendas)]) || 0,
-      validos: parseMoeda(r[colKey(c.validos)]),
-      posicao: Number(r[colKey(c.posicao)]) || 999,
-    }))
-    .sort((a, b) => a.posicao - b.posicao).slice(0, 3);
-}
-
-function parseSemanal(rows) {
-  const c = COLS.semanal;
-  return rows
-    .filter(r => r[colKey(c.equipe)] && parseMoeda(r[colKey(c.vendas)]) > 0)
-    .map(r => ({
-      equipe:  r[colKey(c.equipe)],
-      vendas:  parseMoeda(r[colKey(c.vendas)]),
-      entrada: parseMoeda(r[colKey(c.entrada)]),
-      sucesso: r[colKey(c.sucesso)],
-      posicao: Number(r[colKey(c.posicao)]) || 999,
-    }))
-    .sort((a, b) => a.posicao - b.posicao).slice(0, 3);
-}
-
-function parseEquipes(rows) {
-  const c = COLS.equipes;
-  return rows
-    .filter(r => r[colKey(c.equipe)] && parseMoeda(r[colKey(c.vendas)]) > 0)
-    .map(r => ({
-      equipe:    r[colKey(c.equipe)],
-      vendas:    parseMoeda(r[colKey(c.vendas)]),
-      validadas: parseMoeda(r[colKey(c.validadas)]),
-      posicao:   Number(r[colKey(c.posicao)]) || 999,
-    }))
-    .sort((a, b) => a.posicao - b.posicao).slice(0, 3);
-}
-
-/* colKey: converte índice numérico em chave do objeto CSV
-   O parser de CSV usa o cabeçalho como chave, então precisamos
-   acessar pelo nome da coluna. Esta função retorna o índice como string
-   para o caso do cabeçalho ser numérico ou ausente. */
-function colKey(i) { return String(i); }
 
 /* Converte "R$ 39.000,00" → 39000 */
 function parseMoeda(v) {

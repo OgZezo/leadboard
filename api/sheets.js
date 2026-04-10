@@ -62,10 +62,33 @@ export default async function handler(req) {
 /* ─── helpers ─────────────────────────────────────────────── */
 
 function parseCSV(text) {
-  const lines = text.trim().split("\n").map((l) => l.split(",").map((c) => c.trim().replace(/^"|"$/g, "")));
+  // Parser robusto: respeita campos com vírgulas dentro de aspas
+  function splitLine(line) {
+    const fields = [];
+    let cur = "", inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQ = !inQ; continue; }
+      if (ch === "," && !inQ) { fields.push(cur.trim()); cur = ""; continue; }
+      cur += ch;
+    }
+    fields.push(cur.trim());
+    return fields;
+  }
+
+  const lines = text.trim().split(/\r?\n/).map(splitLine);
   if (lines.length < 2) return [];
-  const headers = lines[0];
-  return lines.slice(1).map((row) =>
+
+  // Trata cabeçalhos duplicados adicionando sufixo _2, _3...
+  const rawHeaders = lines[0];
+  const seen = {};
+  const headers = rawHeaders.map(h => {
+    const key = h || "_empty";
+    seen[key] = (seen[key] || 0) + 1;
+    return seen[key] > 1 ? `${key}_${seen[key]}` : key;
+  });
+
+  return lines.slice(1).map(row =>
     Object.fromEntries(headers.map((h, i) => [h, row[i] ?? ""]))
   );
 }
