@@ -77,19 +77,21 @@ function parseCSV(text) {
   }
 
   const lines = text.trim().split(/\r?\n/).map(splitLine);
-  if (lines.length < 2) return [];
+  if (lines.length < 3) return [];
 
-  // Trata cabeçalhos duplicados adicionando sufixo _2, _3...
-  const rawHeaders = lines[0];
+  // Linha 0 = títulos mesclados ("RANKING MENSAL" etc) → ignorar
+  // Linha 1 = cabeçalhos reais ("Nome", "Vendas", "Valores válidos"...)
+  const rawHeaders = lines[1];
   const seen = {};
   const headers = rawHeaders.map(h => {
-    const key = h || "_empty";
+    const key = h.trim() || "_empty";
     seen[key] = (seen[key] || 0) + 1;
     return seen[key] > 1 ? `${key}_${seen[key]}` : key;
   });
 
-  return lines.slice(1).map(row =>
-    Object.fromEntries(headers.map((h, i) => [h, row[i] ?? ""]))
+  // Dados começam na linha 2
+  return lines.slice(2).map(row =>
+    Object.fromEntries(headers.map((h, i) => [h, (row[i] ?? "").trim()]))
   );
 }
 
