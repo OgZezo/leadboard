@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ranking Comercial</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:        #07080d;
+      --surface:   #0d0f18;
+      --border:    rgba(255,255,255,0.07);
+      --gold:      #c9a84c;
+      --gold-dim:  rgba(201,168,76,0.15);
+      --silver:    #8fa3b8;
+      --bronze:    #a87c50;
+      --green:     #22c55e;
+      --blue:      #3b82f6;
+      --text:      rgba(255,255,255,0.88);
+      --muted:     rgba(255,255,255,0.35);
+      --faint:     rgba(255,255,255,0.06);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Syne', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── noise overlay ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+      opacity: 0.025;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── header ── */
+    .header {
+      position: relative; z-index: 1;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 32px;
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+    }
+
+    .header-left { display: flex; align-items: center; gap: 14px; }
+
+    .logo {
+      width: 34px; height: 34px; border-radius: 9px;
+      background: linear-gradient(135deg, #1a1508, #c9a84c22);
+      border: 1px solid rgba(201,168,76,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; font-weight: 800; color: var(--gold);
+      letter-spacing: -1px;
+    }
+
+    .header-info h1 {
+      font-size: 15px; font-weight: 700;
+      color: var(--text); letter-spacing: -0.3px;
+    }
+    .header-info p {
+      font-size: 11px; color: var(--muted);
+      font-family: 'DM Mono', monospace; margin-top: 1px;
+    }
+
+    .header-right { display: flex; align-items: center; gap: 10px; }
+
+    .live-pill {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(34,197,94,0.08);
+      border: 1px solid rgba(34,197,94,0.2);
+      border-radius: 100px; padding: 5px 12px;
+      font-size: 11px; color: var(--green);
+      font-family: 'DM Mono', monospace;
+    }
+    .live-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green);
+      animation: blink 1.8s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.7)} }
+
+    .btn-metas {
+      background: var(--faint);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 6px 14px; border-radius: 8px;
+      font-size: 12px; font-family: 'Syne', sans-serif;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn-metas:hover { background: rgba(201,168,76,0.08); border-color: rgba(201,168,76,0.3); color: var(--gold); }
+
+    /* ── grid ── */
+    .grid {
+      position: relative; z-index: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto;
+      gap: 16px;
+      padding: 20px 32px;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px 22px;
+      transition: border-color 0.3s;
+    }
+    .panel:hover { border-color: rgba(255,255,255,0.12); }
+
+    .panel-eyebrow {
+      font-size: 10px; font-weight: 600;
+      letter-spacing: 1.8px; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 4px;
+      font-family: 'DM Mono', monospace;
+    }
+    .panel-title {
+      font-size: 17px; font-weight: 700;
+      color: var(--text); margin-bottom: 20px;
+      letter-spacing: -0.4px;
+    }
+
+    /* ── podium ── */
+    .podium {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .p-card {
+      border-radius: 12px;
+      padding: 16px 12px 14px;
+      text-align: center;
+      position: relative;
+      transition: transform 0.2s;
+    }
+    .p-card:hover { transform: translateY(-2px); }
+
+    .p-card.rank-1 {
+      background: linear-gradient(160deg, #1c1608 0%, #251c0c 100%);
+      border: 1px solid rgba(201,168,76,0.3);
+      order: 2;
+    }
+    .p-card.rank-2 {
+      background: linear-gradient(160deg, #0f1219 0%, #161d27 100%);
+      border: 1px solid rgba(143,163,184,0.18);
+      order: 1; margin-bottom: 0;
+    }
+    .p-card.rank-3 {
+      background: linear-gradient(160deg, #150e08 0%, #1e1510 100%);
+      border: 1px solid rgba(168,124,80,0.18);
+      order: 3; margin-bottom: 0;
+    }
+
+    .p-badge {
+      position: absolute; top: 8px; right: 10px;
+      font-size: 10px; font-weight: 600;
+      font-family: 'DM Mono', monospace;
+    }
+    .rank-1 .p-badge { color: var(--gold); }
+    .rank-2 .p-badge { color: var(--silver); }
+    .rank-3 .p-badge { color: var(--bronze); }
+
+    .p-avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700;
+      margin: 0 auto 10px;
+    }
+    .rank-1 .p-avatar { background: rgba(201,168,76,0.12); color: var(--gold); border: 1.5px solid rgba(201,168,76,0.35); }
+    .rank-2 .p-avatar { background: rgba(143,163,184,0.08); color: var(--silver); border: 1.5px solid rgba(143,163,184,0.25); }
+    .rank-3 .p-avatar { background: rgba(168,124,80,0.08); color: var(--bronze); border: 1.5px solid rgba(168,124,80,0.25); }
+
+    .p-name {
+      font-size: 12px; font-weight: 600;
+      color: var(--text); margin-bottom: 5px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .p-value {
+      font-size: 13px; font-weight: 700;
+      font-family: 'DM Mono', monospace;
+    }
+    .rank-1 .p-value { color: var(--gold); }
+    .rank-2 .p-value { color: var(--silver); }
+    .rank-3 .p-value { color: var(--bronze); }
+
+    .p-sublabel {
+      font-size: 10px; color: var(--muted);
+      margin-top: 2px; font-family: 'DM Mono', monospace;
+    }
+
+    /* ── progress panel ── */
+    .progress-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .prog-item {}
+
+    .prog-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 8px;
+    }
+    .prog-label { font-size: 13px; font-weight: 600; color: var(--text); }
+    .prog-right { text-align: right; }
+    .prog-pct {
+      font-size: 18px; font-weight: 700;
+      font-family: 'DM Mono', monospace;
+    }
+    .prog-pct.c-gold  { color: var(--gold); }
+    .prog-pct.c-blue  { color: var(--blue); }
+    .prog-pct.c-green { color: var(--green); }
+
+    .prog-vals {
+      font-size: 11px; color: var(--muted);
+      font-family: 'DM Mono', monospace; margin-top: 1px;
+    }
+
+    .prog-track {
+      height: 6px; background: var(--faint);
+      border-radius: 100px; overflow: hidden;
+    }
+    .prog-fill {
+      height: 100%; border-radius: 100px;
+      transition: width 1.2s cubic-bezier(0.4,0,0.2,1);
+      width: 0%;
+    }
+    .prog-fill.c-gold  { background: linear-gradient(90deg, #9a7820, #e2b84a); }
+    .prog-fill.c-blue  { background: linear-gradient(90deg, #1d4ed8, #60a5fa); }
+    .prog-fill.c-green { background: linear-gradient(90deg, #15803d, #4ade80); }
+
+    /* ── ticker ── */
+    .ticker {
+      position: relative; z-index: 1;
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 32px;
+      background: rgba(255,255,255,0.015);
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      overflow: hidden;
+    }
+    .ticker-tag {
+      flex-shrink: 0;
+      font-size: 9px; font-weight: 700; letter-spacing: 1.8px;
+      color: var(--gold); font-family: 'DM Mono', monospace;
+      padding: 3px 8px; border: 1px solid rgba(201,168,76,0.3);
+      border-radius: 4px; background: var(--gold-dim);
+    }
+    .ticker-scroll {
+      flex: 1; overflow: hidden;
+      -webkit-mask: linear-gradient(90deg, transparent 0%, black 5%, black 95%, transparent 100%);
+    }
+    .ticker-inner {
+      display: inline-block;
+      white-space: nowrap;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      animation: marquee 40s linear infinite;
+    }
+    @keyframes marquee { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+
+    /* ── loading skeleton ── */
+    .skeleton {
+      background: linear-gradient(90deg, var(--faint) 25%, rgba(255,255,255,0.09) 50%, var(--faint) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 6px;
+    }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+    /* ── error state ── */
+    .error-msg {
+      text-align: center; padding: 28px;
+      color: rgba(255,80,80,0.7); font-size: 12px;
+      font-family: 'DM Mono', monospace;
+    }
+
+    /* ── modal ── */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .overlay.open { opacity: 1; pointer-events: all; }
+
+    .modal {
+      background: #101118;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 18px;
+      padding: 28px;
+      width: 440px; max-width: 92vw;
+      transform: translateY(8px);
+      transition: transform 0.25s;
+    }
+    .overlay.open .modal { transform: translateY(0); }
+
+    .modal-title { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+    .modal-desc {
+      font-size: 12px; color: var(--muted);
+      margin-bottom: 22px; line-height: 1.7;
+      font-family: 'DM Mono', monospace;
+    }
+
+    .field { margin-bottom: 14px; }
+    .field label {
+      display: block; font-size: 11px; font-weight: 600;
+      letter-spacing: 1px; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 6px;
+    }
+    .field input {
+      width: 100%;
+      background: var(--faint);
+      border: 1px solid var(--border);
+      border-radius: 9px; padding: 10px 14px;
+      color: var(--text); font-size: 13px;
+      font-family: 'DM Mono', monospace;
+      outline: none; transition: border-color 0.2s;
+    }
+    .field input:focus { border-color: rgba(201,168,76,0.45); }
+
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .btn-save {
+      flex: 1; background: var(--gold); border: none;
+      color: #07080d; padding: 11px;
+      border-radius: 9px; font-size: 13px; font-weight: 700;
+      font-family: 'Syne', sans-serif;
+      cursor: pointer; transition: background 0.2s;
+    }
+    .btn-save:hover { background: #e2b84a; }
+    .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-cancel {
+      background: var(--faint); border: 1px solid var(--border);
+      color: var(--muted); padding: 11px 16px;
+      border-radius: 9px; font-size: 13px;
+      font-family: 'Syne', sans-serif;
+      cursor: pointer; transition: background 0.2s;
+    }
+    .btn-cancel:hover { background: rgba(255,255,255,0.07); }
+
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: #101118; border: 1px solid rgba(34,197,94,0.3);
+      color: var(--green); border-radius: 10px;
+      padding: 12px 18px; font-size: 12px;
+      font-family: 'DM Mono', monospace;
+      z-index: 300;
+      opacity: 0; transform: translateY(8px);
+      transition: all 0.3s;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-left">
+    <div class="logo">RC</div>
+    <div class="header-info">
+      <h1>Ranking Comercial</h1>
+      <p id="last-update">Carregando...</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-pill"><div class="live-dot"></div>Ao vivo</div>
+    <button class="btn-metas" onclick="openModal()">⚙ Metas</button>
+  </div>
+</header>
+
+<!-- GRID -->
+<div class="grid">
+
+  <!-- Ranking Mensal -->
+  <div class="panel">
+    <div class="panel-eyebrow">Ranking Mensal</div>
+    <div class="panel-title">Top Vendedores</div>
+    <div class="podium" id="pod-mensal"></div>
+  </div>
+
+  <!-- Ranking Campanha Semanal -->
+  <div class="panel">
+    <div class="panel-eyebrow">Campanha Semanal</div>
+    <div class="panel-title">Maiores Entradas</div>
+    <div class="podium" id="pod-semanal"></div>
+  </div>
+
+  <!-- Ranking Campanha Mensal (equipes) -->
+  <div class="panel">
+    <div class="panel-eyebrow">Campanha Mensal</div>
+    <div class="panel-title">Top Equipes</div>
+    <div class="podium" id="pod-equipes"></div>
+  </div>
+
+  <!-- Performance -->
+  <div class="panel">
+    <div class="panel-eyebrow">Performance</div>
+    <div class="panel-title">Progresso das Metas</div>
+    <div class="progress-grid" id="progress-wrap"></div>
+  </div>
+
+</div>
+
+<!-- TICKER -->
+<div class="ticker">
+  <div class="ticker-tag">DESTAQUES</div>
+  <div class="ticker-scroll">
+    <div class="ticker-inner" id="ticker-inner">Carregando dados...</div>
+  </div>
+</div>
+
+<!-- MODAL METAS -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-title">Definir Metas</div>
+    <div class="modal-desc">As metas ficam centralizadas e valem para todos os dispositivos.</div>
+    <div class="field">
+      <label>Meta de Vendas Mensais (R$)</label>
+      <input type="number" id="inp-vendas" placeholder="Ex: 300000">
+    </div>
+    <div class="field">
+      <label>Meta de Entradas Semanais (R$)</label>
+      <input type="number" id="inp-entradas" placeholder="Ex: 60000">
+    </div>
+    <div class="field">
+      <label>Meta de Equipes — Vendas Válidas (R$)</label>
+      <input type="number" id="inp-equipes" placeholder="Ex: 150000">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" id="btn-save" onclick="saveMetas()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════
+   CONFIG — altere conforme seu deploy
+   ═══════════════════════════════════════════════════ */
+const API = {
+  // Rota relativa funciona tanto local quanto em produção na Vercel
+  sheets: "/api/sheets",
+  metas:  "/api/metas",
+};
+
+/* IDs de aba do Google Sheets (gid=)
+   Para descobrir: abra a aba na planilha → veja a URL → #gid=NÚMERO
+   Exemplo: https://docs.google.com/spreadsheets/d/SEU_ID/edit#gid=0
+*/
+const GID = {
+  mensal:  "1596529438",   // ← substitua pelo gid real da aba Ranking Mensal
+  semanal: "1596529438",   // ← substitua pelo gid real da aba Campanha Semanal
+  equipes: "1596529438",   // ← substitua pelo gid real da aba Campanha Mensal
+};
+
+/* Índices de coluna no CSV (0-based) de cada aba
+   Ajuste conforme as colunas reais da sua planilha publicada */
+const COLS = {
+  mensal:  { nome: 0, vendas: 1, validos: 2, posicao: 3 },
+  semanal: { equipe: 0, vendas: 1, entrada: 2, sucesso: 3, posicao: 4 },
+  equipes: { equipe: 0, vendas: 1, validadas: 2, posicao: 3 },
+};
+
+/* ═══════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════ */
+let metas = { meta_vendas: 0, meta_entradas: 0, meta_equipes: 0 };
+let dados = { mensal: [], semanal: [], equipes: [] };
+
+/* ═══════════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════════ */
+async function init() {
+  await Promise.all([loadMetas(), loadSheets()]);
+  render();
+  // Atualiza planilha a cada 30 segundos
+  setInterval(async () => { await loadSheets(); render(); }, 30_000);
+}
+
+/* ═══════════════════════════════════════════════════
+   FETCH METAS
+   ═══════════════════════════════════════════════════ */
+async function loadMetas() {
+  try {
+    const res  = await fetch(API.metas);
+    const body = await res.json();
+    if (body.ok) metas = body.data;
+  } catch (e) {
+    console.warn("Metas indisponíveis, usando padrão:", e);
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   FETCH SHEETS
+   ═══════════════════════════════════════════════════ */
+async function fetchAba(gid) {
+  const res  = await fetch(`${API.sheets}?gid=${gid}`);
+  const body = await res.json();
+  return body.ok ? body.data : [];
+}
+
+async function loadSheets() {
+  try {
+    /* Se todas as abas tiverem o mesmo gid, busca uma vez só */
+    if (GID.mensal === GID.semanal && GID.semanal === GID.equipes) {
+      const raw = await fetchAba(GID.mensal);
+      dados = parseUnicaAba(raw);
+    } else {
+      const [rawMensal, rawSemanal, rawEquipes] = await Promise.all([
+        fetchAba(GID.mensal),
+        fetchAba(GID.semanal),
+        fetchAba(GID.equipes),
+      ]);
+      dados.mensal  = parseMensal(rawMensal);
+      dados.semanal = parseSemanal(rawSemanal);
+      dados.equipes = parseEquipes(rawEquipes);
+    }
+
+    document.getElementById("last-update").textContent =
+      "Atualizado às " + new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  } catch (e) {
+    console.error("Erro ao carregar planilha:", e);
+  }
+}
+
+/* ── parsers ── */
+
+/* Caso tudo esteja na mesma aba (como no print) */
+function parseUnicaAba(rows) {
+  /* Remove cabeçalhos e linhas vazias */
+  const clean = rows.filter(r => Object.values(r).some(v => v && v !== "#N/D"));
+
+  /* Ranking Mensal: colunas A-D → índices 0-3 */
+  const mensal = clean
+    .filter(r => r[colKey(0)] && !isNaN(parseMoeda(r[colKey(2)])))
+    .map(r => ({
+      nome:     r[colKey(0)],
+      vendas:   Number(r[colKey(1)]) || 0,
+      validos:  parseMoeda(r[colKey(2)]),
+      posicao:  Number(r[colKey(3)]) || 999,
+    }))
+    .filter(r => r.posicao <= 20 && r.nome)
+    .sort((a, b) => a.posicao - b.posicao)
+    .slice(0, 3);
+
+  /* Campanha Mensal por Equipe: colunas G-J → índices 6-9 */
+  const equipes = clean
+    .filter(r => r[colKey(6)] && parseMoeda(r[colKey(7)]) > 0)
+    .map(r => ({
+      equipe:    r[colKey(6)],
+      vendas:    parseMoeda(r[colKey(7)]),
+      validadas: parseMoeda(r[colKey(8)]),
+      posicao:   Number(r[colKey(9)]) || 999,
+    }))
+    .sort((a, b) => a.posicao - b.posicao)
+    .slice(0, 3);
+
+  /* Campanha Semanal: colunas L-P → índices 11-15 */
+  const semanal = clean
+    .filter(r => r[colKey(11)] && parseMoeda(r[colKey(12)]) > 0)
+    .map(r => ({
+      equipe:  r[colKey(11)],
+      vendas:  parseMoeda(r[colKey(12)]),
+      entrada: parseMoeda(r[colKey(13)]),
+      sucesso: r[colKey(14)],
+      posicao: Number(r[colKey(15)]) || 999,
+    }))
+    .sort((a, b) => a.posicao - b.posicao)
+    .slice(0, 3);
+
+  return { mensal, semanal, equipes };
+}
+
+/* Parsers para abas separadas */
+function parseMensal(rows) {
+  const c = COLS.mensal;
+  return rows
+    .filter(r => r[colKey(c.nome)] && parseMoeda(r[colKey(c.validos)]) > 0)
+    .map(r => ({
+      nome:    r[colKey(c.nome)],
+      vendas:  Number(r[colKey(c.vendas)]) || 0,
+      validos: parseMoeda(r[colKey(c.validos)]),
+      posicao: Number(r[colKey(c.posicao)]) || 999,
+    }))
+    .sort((a, b) => a.posicao - b.posicao).slice(0, 3);
+}
+
+function parseSemanal(rows) {
+  const c = COLS.semanal;
+  return rows
+    .filter(r => r[colKey(c.equipe)] && parseMoeda(r[colKey(c.vendas)]) > 0)
+    .map(r => ({
+      equipe:  r[colKey(c.equipe)],
+      vendas:  parseMoeda(r[colKey(c.vendas)]),
+      entrada: parseMoeda(r[colKey(c.entrada)]),
+      sucesso: r[colKey(c.sucesso)],
+      posicao: Number(r[colKey(c.posicao)]) || 999,
+    }))
+    .sort((a, b) => a.posicao - b.posicao).slice(0, 3);
+}
+
+function parseEquipes(rows) {
+  const c = COLS.equipes;
+  return rows
+    .filter(r => r[colKey(c.equipe)] && parseMoeda(r[colKey(c.vendas)]) > 0)
+    .map(r => ({
+      equipe:    r[colKey(c.equipe)],
+      vendas:    parseMoeda(r[colKey(c.vendas)]),
+      validadas: parseMoeda(r[colKey(c.validadas)]),
+      posicao:   Number(r[colKey(c.posicao)]) || 999,
+    }))
+    .sort((a, b) => a.posicao - b.posicao).slice(0, 3);
+}
+
+/* colKey: converte índice numérico em chave do objeto CSV
+   O parser de CSV usa o cabeçalho como chave, então precisamos
+   acessar pelo nome da coluna. Esta função retorna o índice como string
+   para o caso do cabeçalho ser numérico ou ausente. */
+function colKey(i) { return String(i); }
+
+/* Converte "R$ 39.000,00" → 39000 */
+function parseMoeda(v) {
+  if (!v) return 0;
+  return Number(String(v).replace(/[R$\s.]/g, "").replace(",", ".")) || 0;
+}
+
+/* ═══════════════════════════════════════════════════
+   RENDER
+   ═══════════════════════════════════════════════════ */
+function render() {
+  renderPodium("pod-mensal",  dados.mensal,  "mensal");
+  renderPodium("pod-semanal", dados.semanal, "semanal");
+  renderPodium("pod-equipes", dados.equipes, "equipes");
+  renderProgress();
+  renderTicker();
+}
+
+const RANK_LABELS = ["#1", "#2", "#3"];
+const RANK_ORDER  = [1, 0, 2]; // posição visual: 2°, 1°, 3°
+
+function renderPodium(id, items, tipo) {
+  const el = document.getElementById(id);
+  if (!items || items.length === 0) {
+    el.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:24px;font-size:12px;font-family:'DM Mono',monospace">Sem dados</div>`;
+    return;
+  }
+
+  /* Reordena visualmente: 2°, 1°, 3° */
+  const ordered = [items[1], items[0], items[2]].filter(Boolean);
+  const rankClass = ["rank-2", "rank-1", "rank-3"];
+
+  el.innerHTML = ordered.map((item, vi) => {
+    const rClass = rankClass[vi];
+    const badge  = vi === 1 ? "#1" : vi === 0 ? "#2" : "#3";
+    const initials = (item.nome || item.equipe || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+    const label  = item.nome || item.equipe || "—";
+    let valor, sublabel;
+
+    if (tipo === "mensal") {
+      valor    = fmt(item.validos);
+      sublabel = `${item.vendas} vendas`;
+    } else if (tipo === "semanal") {
+      valor    = fmt(item.entrada);
+      sublabel = item.sucesso === "Sim" ? "✓ Meta atingida" : "Em progresso";
+    } else {
+      valor    = fmt(item.validadas);
+      sublabel = `total ${fmt(item.vendas)}`;
+    }
+
+    return `
+      <div class="p-card ${rClass}">
+        <span class="p-badge">${badge}</span>
+        <div class="p-avatar">${initials}</div>
+        <div class="p-name">${label}</div>
+        <div class="p-value">${valor}</div>
+        <div class="p-sublabel">${sublabel}</div>
+      </div>`;
+  }).join("");
+}
+
+function renderProgress() {
+  const wrap = document.getElementById("progress-wrap");
+
+  const totalVendas   = dados.mensal.reduce((s, v) => s + (v.validos || 0), 0);
+  const totalEntradas = dados.semanal.reduce((s, v) => s + (v.entrada || 0), 0);
+  const totalEquipes  = dados.equipes.reduce((s, v) => s + (v.validadas || 0), 0);
+
+  const items = [
+    { label: "Vendas Mensais",      atual: totalVendas,   meta: metas.meta_vendas,   cor: "c-gold"  },
+    { label: "Entradas Semanais",   atual: totalEntradas, meta: metas.meta_entradas, cor: "c-blue"  },
+    { label: "Equipes — Validadas", atual: totalEquipes,  meta: metas.meta_equipes,  cor: "c-green" },
+  ];
+
+  wrap.innerHTML = items.map(({ label, atual, meta, cor }) => {
+    const pct  = meta > 0 ? Math.min(100, Math.round((atual / meta) * 100)) : 0;
+    const vals = meta > 0
+      ? `${fmt(atual)} / ${fmt(meta)}`
+      : `${fmt(atual)} — meta não definida`;
+
+    return `
+      <div class="prog-item">
+        <div class="prog-head">
+          <span class="prog-label">${label}</span>
+          <div class="prog-right">
+            <div class="prog-pct ${cor}">${pct}%</div>
+            <div class="prog-vals">${vals}</div>
+          </div>
+        </div>
+        <div class="prog-track">
+          <div class="prog-fill ${cor}" style="width:${pct}%"></div>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function renderTicker() {
+  const parts = [];
+
+  dados.mensal.forEach((v, i) => {
+    parts.push(`${["🥇","🥈","🥉"][i]} ${v.nome} — ${fmt(v.validos)}`);
+  });
+  dados.equipes.forEach((e, i) => {
+    parts.push(`${["🏆","🔸","🔹"][i]} Equipe ${e.equipe} — ${fmt(e.validadas)} validadas`);
+  });
+  dados.semanal.forEach(e => {
+    if (e.sucesso === "Sim") parts.push(`✅ ${e.equipe} atingiu a meta semanal`);
+  });
+
+  const text = parts.length > 0
+    ? (parts.join("   ·   ") + "   ·   ").repeat(2)
+    : "Aguardando dados da planilha...";
+
+  document.getElementById("ticker-inner").textContent = text;
+}
+
+/* ═══════════════════════════════════════════════════
+   MODAL
+   ═══════════════════════════════════════════════════ */
+function openModal() {
+  document.getElementById("inp-vendas").value   = metas.meta_vendas   || "";
+  document.getElementById("inp-entradas").value = metas.meta_entradas || "";
+  document.getElementById("inp-equipes").value  = metas.meta_equipes  || "";
+  document.getElementById("overlay").classList.add("open");
+}
+function closeModal() {
+  document.getElementById("overlay").classList.remove("open");
+}
+
+document.getElementById("overlay").addEventListener("click", e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+async function saveMetas() {
+  const btn = document.getElementById("btn-save");
+  btn.disabled = true;
+  btn.textContent = "Salvando...";
+
+  const payload = {
+    meta_vendas:   Number(document.getElementById("inp-vendas").value)   || 0,
+    meta_entradas: Number(document.getElementById("inp-entradas").value) || 0,
+    meta_equipes:  Number(document.getElementById("inp-equipes").value)  || 0,
+  };
+
+  try {
+    const res  = await fetch(API.metas, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json();
+    if (!body.ok) throw new Error(body.error);
+
+    metas = payload;
+    closeModal();
+    renderProgress();
+    showToast("✓ Metas salvas para todos os dispositivos");
+  } catch (e) {
+    showToast("✗ Erro ao salvar: " + e.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Salvar";
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   HELPERS
+   ═══════════════════════════════════════════════════ */
+function fmt(v) {
+  return (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
+}
+
+function showToast(msg, isError = false) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.style.borderColor = isError ? "rgba(239,68,68,0.3)" : "rgba(34,197,94,0.3)";
+  t.style.color = isError ? "#ef4444" : "var(--green)";
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 3000);
+}
+
+/* ═══════════════════════════════════════════════════
+   BOOT
+   ═══════════════════════════════════════════════════ */
+init();
+</script>
+</body>
+</html>
