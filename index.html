@@ -17,15 +17,15 @@
       --bronze:    #a87c50;
       --green:     #22c55e;
       --blue:      #3b82f6;
-      --text:      rgb(255, 255, 255);
-      --muted:     rgba(255,255,255,0.35);
+      --text:      rgba(255,255,255,0.88);
+      --muted:     rgba(255, 255, 255, 0.774);
       --faint:     rgba(255,255,255,0.06);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: 'Arial', sans-serif;
+      font-family: 'Syne', sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
@@ -241,36 +241,6 @@
     .prog-fill.c-blue  { background: linear-gradient(90deg, #1d4ed8, #60a5fa); }
     .prog-fill.c-green { background: linear-gradient(90deg, #15803d, #4ade80); }
 
-    /* ── ticker ── */
-    .ticker {
-      position: relative; z-index: 1;
-      display: flex; align-items: center; gap: 12px;
-      padding: 10px 32px;
-      background: rgba(255,255,255,0.015);
-      border-top: 1px solid var(--border);
-      font-size: 11px;
-      overflow: hidden;
-    }
-    .ticker-tag {
-      flex-shrink: 0;
-      font-size: 9px; font-weight: 700; letter-spacing: 1.8px;
-      color: var(--gold); font-family: 'DM Mono', monospace;
-      padding: 3px 8px; border: 1px solid rgba(201,168,76,0.3);
-      border-radius: 4px; background: var(--gold-dim);
-    }
-    .ticker-scroll {
-      flex: 1; overflow: hidden;
-      -webkit-mask: linear-gradient(90deg, transparent 0%, black 5%, black 95%, transparent 100%);
-    }
-    .ticker-inner {
-      display: inline-block;
-      white-space: nowrap;
-      color: var(--muted);
-      font-family: 'DM Mono', monospace;
-      animation: marquee 40s linear infinite;
-    }
-    @keyframes marquee { from{transform:translateX(0)} to{transform:translateX(-50%)} }
-
     /* ── loading skeleton ── */
     .skeleton {
       background: linear-gradient(90deg, var(--faint) 25%, rgba(255,255,255,0.09) 50%, var(--faint) 75%);
@@ -417,14 +387,6 @@
 
 </div>
 
-<!-- TICKER -->
-<div class="ticker">
-  <div class="ticker-tag">DESTAQUES</div>
-  <div class="ticker-scroll">
-    <div class="ticker-inner" id="ticker-inner">Carregando dados...</div>
-  </div>
-</div>
-
 <!-- MODAL METAS -->
 <div class="overlay" id="overlay">
   <div class="modal">
@@ -437,10 +399,6 @@
     <div class="field">
       <label>Meta de Entradas Semanais (R$)</label>
       <input type="number" id="inp-entradas" placeholder="Ex: 60000">
-    </div>
-    <div class="field">
-      <label>Meta de Equipes — Vendas Válidas (R$)</label>
-      <input type="number" id="inp-equipes" placeholder="Ex: 150000">
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
@@ -484,6 +442,7 @@ const COLS = {
    ═══════════════════════════════════════════════════ */
 let metas = { meta_vendas: 0, meta_entradas: 0, meta_equipes: 0 };
 let dados = { mensal: [], semanal: [], equipes: [] };
+let totais = { vendas: 0, entradas: 0 }; // totais calculados de TODOS os registros do CSV
 
 /* ═══════════════════════════════════════════════════
    INIT
@@ -640,6 +599,17 @@ function parseUnicaAba(rows) {
     .sort((a, b) => a.posicao - b.posicao)
     .slice(0, 3);
 
+  // Totais reais = soma de TODOS os registros válidos (não só o pódio)
+  const totalVendas   = clean
+    .filter(r => r[kNome]?.trim() && parseMoeda(r[kValidos]) > 0)
+    .reduce((s, r) => s + parseMoeda(r[kValidos]), 0);
+
+  const totalEntradas = clean
+    .filter(r => r[kEquipeSemanal]?.trim() && parseMoeda(r[kEntrada]) > 0)
+    .reduce((s, r) => s + parseMoeda(r[kEntrada]), 0);
+
+  totais = { vendas: totalVendas, entradas: totalEntradas };
+
   return { mensal, semanal, equipes };
 }
 
@@ -657,7 +627,6 @@ function render() {
   renderPodium("pod-semanal", dados.semanal, "semanal");
   renderPodium("pod-equipes", dados.equipes, "equipes");
   renderProgress();
-  renderTicker();
 }
 
 const RANK_LABELS = ["#1", "#2", "#3"];
@@ -706,14 +675,9 @@ function renderPodium(id, items, tipo) {
 function renderProgress() {
   const wrap = document.getElementById("progress-wrap");
 
-  const totalVendas   = dados.mensal.reduce((s, v) => s + (v.validos || 0), 0);
-  const totalEntradas = dados.semanal.reduce((s, v) => s + (v.entrada || 0), 0);
-  const totalEquipes  = dados.equipes.reduce((s, v) => s + (v.validadas || 0), 0);
-
   const items = [
-    { label: "Vendas Mensais",      atual: totalVendas,   meta: metas.meta_vendas,   cor: "c-gold"  },
-    { label: "Entradas Semanais",   atual: totalEntradas, meta: metas.meta_entradas, cor: "c-blue"  },
-    { label: "Equipes — Validadas", atual: totalEquipes,  meta: metas.meta_equipes,  cor: "c-green" },
+    { label: "Vendas Mensais",    atual: totais.vendas,   meta: metas.meta_vendas,   cor: "c-gold" },
+    { label: "Entradas Semanais", atual: totais.entradas, meta: metas.meta_entradas, cor: "c-blue" },
   ];
 
   wrap.innerHTML = items.map(({ label, atual, meta, cor }) => {
@@ -738,33 +702,12 @@ function renderProgress() {
   }).join("");
 }
 
-function renderTicker() {
-  const parts = [];
-
-  dados.mensal.forEach((v, i) => {
-    parts.push(`${["🥇","🥈","🥉"][i]} ${v.nome} — ${fmt(v.validos)}`);
-  });
-  dados.equipes.forEach((e, i) => {
-    parts.push(`${["🏆","🔸","🔹"][i]} Equipe ${e.equipe} — ${fmt(e.validadas)} validadas`);
-  });
-  dados.semanal.forEach(e => {
-    if (e.sucesso === "Sim") parts.push(`✅ ${e.equipe} atingiu a meta semanal`);
-  });
-
-  const text = parts.length > 0
-    ? (parts.join("   ·   ") + "   ·   ").repeat(2)
-    : "Aguardando dados da planilha...";
-
-  document.getElementById("ticker-inner").textContent = text;
-}
-
 /* ═══════════════════════════════════════════════════
    MODAL
    ═══════════════════════════════════════════════════ */
 function openModal() {
   document.getElementById("inp-vendas").value   = metas.meta_vendas   || "";
   document.getElementById("inp-entradas").value = metas.meta_entradas || "";
-  document.getElementById("inp-equipes").value  = metas.meta_equipes  || "";
   document.getElementById("overlay").classList.add("open");
 }
 function closeModal() {
@@ -783,7 +726,7 @@ async function saveMetas() {
   const payload = {
     meta_vendas:   Number(document.getElementById("inp-vendas").value)   || 0,
     meta_entradas: Number(document.getElementById("inp-entradas").value) || 0,
-    meta_equipes:  Number(document.getElementById("inp-equipes").value)  || 0,
+    meta_equipes:  0,
   };
 
   try {
